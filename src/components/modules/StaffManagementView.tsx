@@ -47,11 +47,13 @@ export function StaffManagementView() {
   };
 
   const handleEditStaff = (staffMember: any) => {
+    console.log('Edit button clicked for:', staffMember);
     setEditingStaff(staffMember);
     setShowEditStaff(true);
   };
 
   const handleDisableStaff = async (staffMember: any) => {
+    console.log('Disable button clicked for:', staffMember);
     if (!confirm(`Are you sure you want to ${staffMember.status === 'active' ? 'disable' : 'enable'} ${staffMember.firstName} ${staffMember.lastName}?`)) {
       return;
     }
@@ -59,6 +61,8 @@ export function StaffManagementView() {
     try {
       const session = JSON.parse(localStorage.getItem('session') || '{}');
       const newStatus = staffMember.status === 'active' ? 'inactive' : 'active';
+
+      console.log('Making PATCH request to update status:', { staffId: staffMember.id, newStatus });
 
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/staff/${staffMember.id}`, {
         method: 'PATCH',
@@ -70,15 +74,17 @@ export function StaffManagementView() {
       });
 
       const data = await response.json();
+      console.log('Response from server:', { status: response.status, data });
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update staff status');
       }
 
+      alert('Staff status updated successfully!');
       fetchStaff(); // Refresh the list
     } catch (error) {
       console.error('Error updating staff status:', error);
-      alert('Failed to update staff status');
+      alert(`Failed to update staff status: ${error.message}`);
     }
   };
 
