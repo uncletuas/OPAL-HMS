@@ -48,8 +48,11 @@ export function StaffManagementView() {
 
   const handleEditStaff = (staffMember: any) => {
     console.log('Edit button clicked for:', staffMember);
+    console.log('Setting editingStaff to:', staffMember);
+    console.log('Setting showEditStaff to: true');
     setEditingStaff(staffMember);
     setShowEditStaff(true);
+    console.log('Modal should now be open');
   };
 
   const handleDisableStaff = async (staffMember: any) => {
@@ -238,6 +241,8 @@ export function StaffManagementView() {
 }
 
 function EditStaffModal({ staff, onClose, onSuccess }: { staff: any; onClose: () => void; onSuccess: () => void }) {
+  console.log('EditStaffModal rendered with staff:', staff);
+
   const [formData, setFormData] = useState({
     firstName: staff.firstName || '',
     lastName: staff.lastName || '',
