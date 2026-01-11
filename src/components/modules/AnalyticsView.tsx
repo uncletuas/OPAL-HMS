@@ -1,6 +1,58 @@
-import { BarChart3, TrendingUp, Users, Activity } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BarChart3, TrendingUp, Users, Activity, Loader2, AlertCircle } from 'lucide-react';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 export function AnalyticsView() {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      const session = JSON.parse(localStorage.getItem('session') || '{}');
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/analytics`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAnalytics(data.analytics);
+      } else {
+        setError('Failed to load analytics data');
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      setError('Failed to load analytics data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-5" />
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -13,28 +65,28 @@ export function AnalyticsView() {
         <MetricCard
           icon={Users}
           label="Total Patients"
-          value="3"
+          value={analytics?.metrics?.totalPatients?.toString() || '0'}
           trend="+12%"
           trendUp={true}
         />
         <MetricCard
           icon={Activity}
           label="Appointments This Month"
-          value="25"
+          value={analytics?.metrics?.appointmentsThisMonth?.toString() || '0'}
           trend="+8%"
           trendUp={true}
         />
         <MetricCard
           icon={BarChart3}
           label="Lab Tests Completed"
-          value="45"
+          value={analytics?.metrics?.labTestsCompleted?.toString() || '0'}
           trend="+15%"
           trendUp={true}
         />
         <MetricCard
           icon={TrendingUp}
-          label="Patient Satisfaction"
-          value="94%"
+          label="Active Staff"
+          value={analytics?.metrics?.activeStaff?.toString() || '0'}
           trend="+2%"
           trendUp={true}
         />
@@ -44,10 +96,17 @@ export function AnalyticsView() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h4 className="text-lg mb-6">Department Performance</h4>
         <div className="space-y-4">
-          <DepartmentBar department="General Medicine" value={85} color="blue" />
-          <DepartmentBar department="Laboratory" value={92} color="green" />
-          <DepartmentBar department="Pharmacy" value={88} color="purple" />
-          <DepartmentBar department="Nursing" value={90} color="yellow" />
+          {analytics?.departmentPerformance?.map((dept: any, index: number) => {
+            const colors = ['blue', 'green', 'purple', 'yellow'];
+            return (
+              <DepartmentBar
+                key={dept.department}
+                department={dept.department}
+                value={dept.performance}
+                color={colors[index % colors.length]}
+              />
+            );
+          }) || []}
         </div>
       </div>
 
@@ -56,23 +115,18 @@ export function AnalyticsView() {
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h4 className="text-lg mb-4">Weekly Appointments</h4>
           <div className="space-y-3">
-            <WeekdayBar day="Monday" value={5} />
-            <WeekdayBar day="Tuesday" value={8} />
-            <WeekdayBar day="Wednesday" value={6} />
-            <WeekdayBar day="Thursday" value={7} />
-            <WeekdayBar day="Friday" value={4} />
-            <WeekdayBar day="Saturday" value={3} />
-            <WeekdayBar day="Sunday" value={2} />
+            {analytics?.weeklyAppointments?.map((day: any) => (
+              <WeekdayBar key={day.day} day={day.day} value={day.appointments} />
+            ))}
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h4 className="text-lg mb-4">Lab Test Turnaround Time</h4>
           <div className="space-y-4">
-            <TestTypeBar test="Complete Blood Count" avgTime="35 min" />
-            <TestTypeBar test="HbA1c" avgTime="48 min" />
-            <TestTypeBar test="Lipid Panel" avgTime="42 min" />
-            <TestTypeBar test="Urinalysis" avgTime="28 min" />
+            {analytics?.labTurnaroundTimes?.map((test: any) => (
+              <TestTypeBar key={test.test} test={test.test} avgTime={test.avgTime} />
+            ))}
           </div>
         </div>
       </div>
@@ -81,24 +135,28 @@ export function AnalyticsView() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h4 className="text-lg mb-6">Monthly Revenue Overview</h4>
         <div className="grid grid-cols-3 gap-6">
-          <RevenueCard
-            label="Consultations"
-            amount="$12,500"
-            percentage="45%"
-            color="blue"
-          />
-          <RevenueCard
-            label="Lab Tests"
-            amount="$8,300"
-            percentage="30%"
-            color="green"
-          />
-          <RevenueCard
-            label="Pharmacy"
-            amount="$6,900"
-            percentage="25%"
-            color="purple"
-          />
+          {analytics?.revenueOverview && (
+            <>
+              <RevenueCard
+                label="Consultations"
+                amount={`$${analytics.revenueOverview.consultations.amount.toLocaleString()}`}
+                percentage={`${analytics.revenueOverview.consultations.percentage}%`}
+                color="blue"
+              />
+              <RevenueCard
+                label="Lab Tests"
+                amount={`$${analytics.revenueOverview.labTests.amount.toLocaleString()}`}
+                percentage={`${analytics.revenueOverview.labTests.percentage}%`}
+                color="green"
+              />
+              <RevenueCard
+                label="Pharmacy"
+                amount={`$${analytics.revenueOverview.pharmacy.amount.toLocaleString()}`}
+                percentage={`${analytics.revenueOverview.pharmacy.percentage}%`}
+                color="purple"
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

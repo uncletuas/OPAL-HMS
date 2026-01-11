@@ -1128,6 +1128,105 @@ app.delete('/make-server-a210bd47/medical-reports/:id', async (c) => {
   }
 });
 
+// ================== Analytics Routes ==================
+
+// Get analytics data (admin only)
+app.get('/make-server-a210bd47/analytics', async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+
+    if (!accessToken) {
+      return c.json({ error: 'No authorization token provided' }, 401);
+    }
+
+    const admin = await verifyAdmin(accessToken);
+    if (!admin) {
+      return c.json({ error: 'Unauthorized: Admin access required' }, 403);
+    }
+
+    // Get real-time analytics data
+    const patients = await kv.getByPrefix('patient:');
+    const staff = await kv.getByPrefix('staff:');
+    const appointments = await kv.getByPrefix('appointment:');
+    const labOrders = await kv.getByPrefix('lab:');
+
+    // Calculate metrics
+    const activePatients = patients.filter((p: any) => p.status === 'active').length;
+    const activeStaff = staff.filter((s: any) => s.status === 'active').length;
+
+    // Appointments this month
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const appointmentsThisMonth = appointments.filter((a: any) => {
+      const appointmentDate = new Date(a.date || a.createdAt);
+      return appointmentDate >= startOfMonth;
+    }).length;
+
+    // Lab tests completed (status: Completed)
+    const completedLabTests = labOrders.filter((l: any) => l.status === 'Completed').length;
+
+    // Department performance (mock data for now - would be calculated from actual data)
+    const departmentPerformance = [
+      { department: 'General Medicine', performance: 85 },
+      { department: 'Laboratory', performance: 92 },
+      { department: 'Pharmacy', performance: 88 },
+      { department: 'Nursing', performance: 90 }
+    ];
+
+    // Weekly appointments (last 7 days)
+    const weeklyStats = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+      const dayAppointments = appointments.filter((a: any) => {
+        const appointmentDate = new Date(a.date || a.createdAt);
+        return appointmentDate.toDateString() === date.toDateString();
+      }).length;
+
+      weeklyStats.push({
+        day: dayName.substring(0, 3), // Mon, Tue, etc.
+        appointments: dayAppointments
+      });
+    }
+
+    // Lab test turnaround times (mock data - would be calculated from actual timestamps)
+    const labTurnaroundTimes = [
+      { test: 'Complete Blood Count', avgTime: '35 min' },
+      { test: 'HbA1c', avgTime: '48 min' },
+      { test: 'Lipid Panel', avgTime: '42 min' },
+      { test: 'Urinalysis', avgTime: '28 min' }
+    ];
+
+    // Revenue data (mock data - would be calculated from billing records)
+    const revenueData = {
+      consultations: { amount: 12500, percentage: 45 },
+      labTests: { amount: 8300, percentage: 30 },
+      pharmacy: { amount: 6900, percentage: 25 }
+    };
+
+    const analytics = {
+      metrics: {
+        totalPatients: activePatients,
+        appointmentsThisMonth,
+        labTestsCompleted: completedLabTests,
+        activeStaff
+      },
+      departmentPerformance,
+      weeklyAppointments: weeklyStats,
+      labTurnaroundTimes,
+      revenueOverview: revenueData
+    };
+
+    return c.json({ success: true, analytics });
+
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    return c.json({ error: 'Internal server error while fetching analytics' }, 500);
+  }
+});
+
 // ================== Reminders & Notifications Routes ==================
 
 // Send appointment reminder
