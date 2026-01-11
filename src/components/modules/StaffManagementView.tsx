@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Search, Mail, Phone, AlertCircle, CheckCircle } from 'lucide-react';
+import { UserPlus, Search, Mail, Phone, AlertCircle, CheckCircle, Edit, UserX, UserCheck } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 export function StaffManagementView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddStaff, setShowAddStaff] = useState(false);
+  const [showEditStaff, setShowEditStaff] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +43,48 @@ export function StaffManagementView() {
 
   const handleStaffCreated = () => {
     setShowAddStaff(false);
+    fetchStaff();
+  };
+
+  const handleEditStaff = (staffMember: any) => {
+    setEditingStaff(staffMember);
+    setShowEditStaff(true);
+  };
+
+  const handleDisableStaff = async (staffMember: any) => {
+    if (!confirm(`Are you sure you want to ${staffMember.status === 'active' ? 'disable' : 'enable'} ${staffMember.firstName} ${staffMember.lastName}?`)) {
+      return;
+    }
+
+    try {
+      const session = JSON.parse(localStorage.getItem('session') || '{}');
+      const newStatus = staffMember.status === 'active' ? 'inactive' : 'active';
+
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/staff/${staffMember.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update staff status');
+      }
+
+      fetchStaff(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating staff status:', error);
+      alert('Failed to update staff status');
+    }
+  };
+
+  const handleStaffUpdated = () => {
+    setShowEditStaff(false);
+    setEditingStaff(null);
     fetchStaff();
   };
 
@@ -131,11 +175,32 @@ export function StaffManagementView() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                      <button
+                        onClick={() => handleEditStaff(staffMember)}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                      >
+                        <Edit className="size-3" />
                         Edit
                       </button>
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                        Disable
+                      <button
+                        onClick={() => handleDisableStaff(staffMember)}
+                        className={`px-3 py-1 text-sm border rounded transition-colors flex items-center gap-1 ${
+                          staffMember.status === 'active'
+                            ? 'border-red-300 text-red-700 hover:bg-red-50'
+                            : 'border-green-300 text-green-700 hover:bg-green-50'
+                        }`}
+                      >
+                        {staffMember.status === 'active' ? (
+                          <>
+                            <UserX className="size-3" />
+                            Disable
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="size-3" />
+                            Enable
+                          </>
+                        )}
                       </button>
                     </div>
                   </td>
@@ -154,6 +219,193 @@ export function StaffManagementView() {
       {showAddStaff && (
         <AddStaffModal onClose={() => setShowAddStaff(false)} onSuccess={handleStaffCreated} />
       )}
+
+      {showEditStaff && editingStaff && (
+        <EditStaffModal
+          staff={editingStaff}
+          onClose={() => setShowEditStaff(false)}
+          onSuccess={handleStaffUpdated}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditStaffModal({ staff, onClose, onSuccess }: { staff: any; onClose: () => void; onSuccess: () => void }) {
+  const [formData, setFormData] = useState({
+    firstName: staff.firstName || '',
+    lastName: staff.lastName || '',
+    email: staff.email || '',
+    phone: staff.phone || '',
+    role: staff.role || '',
+    department: staff.department || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const session = JSON.parse(localStorage.getItem('session') || '{}');
+
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/staff/${staff.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update staff member');
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Error updating staff:', err);
+      setError(err.message || 'Failed to update staff member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-xl">Edit Staff Member</h3>
+          <p className="text-sm text-gray-600 mt-1">Update {staff.firstName} {staff.lastName}'s information</p>
+        </div>
+
+        {error && (
+          <div className="m-6 mb-0 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="size-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="m-6 mb-0 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+            <CheckCircle className="size-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-green-800">Staff member updated successfully!</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">First Name *</label>
+              <input
+                type="text"
+                required
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                placeholder="John"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Last Name *</label>
+              <input
+                type="text"
+                required
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                placeholder="Doe"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Email *</label>
+            <input
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="john.doe@opalhospital.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Phone Number</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="+1 (555) 123-4567"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Role *</label>
+              <select
+                required
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select role...</option>
+                <option value="doctor">Doctor</option>
+                <option value="nurse">Nurse</option>
+                <option value="lab_tech">Lab Technician</option>
+                <option value="pharmacist">Pharmacist</option>
+                <option value="registrar">Registrar</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Department *</label>
+              <select
+                required
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select department...</option>
+                <option value="General Medicine">General Medicine</option>
+                <option value="Surgery">Surgery</option>
+                <option value="Pediatrics">Pediatrics</option>
+                <option value="Laboratory">Laboratory</option>
+                <option value="Pharmacy">Pharmacy</option>
+                <option value="Nursing">Nursing</option>
+                <option value="Administration">Administration</option>
+              </select>
+            </div>
+          </div>
+        </form>
+        <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || success}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Updating...' : success ? 'Updated!' : 'Update Staff Member'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
