@@ -1,5 +1,22 @@
 # OPAL Hospital Management System - Status
 
+## ⚠️ Database Setup Required
+
+### Action Required: Create Database Tables
+
+The system requires a KV store table that may not exist in your Supabase project.
+
+**To fix staff creation and other backend issues:**
+
+1. Go to your Supabase Dashboard: https://supabase.com/dashboard/project/kxdhnhtoyikagywsaefq
+2. Navigate to **SQL Editor**
+3. Run the SQL script from `database_setup.sql` in your project root
+4. The script will create the required `kv_store_a210bd47` table
+
+**After running the SQL script, the backend should work properly.**
+
+---
+
 ## ✅ System Connected to Supabase
 
 ### Current Implementation Status
