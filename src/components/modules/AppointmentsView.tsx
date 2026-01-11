@@ -219,39 +219,55 @@ function AppointmentCard({ appointment, onUpdate }: { appointment: any; onUpdate
 
 function NewAppointmentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [patients, setPatients] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     patientId: '',
+    doctorId: '',
     date: '',
     time: '',
     type: 'General Consultation',
-    department: 'General Medicine',
-    doctorName: 'Dr. Smith',
+    department: '',
     notes: '',
     status: 'Scheduled'
   });
 
   useEffect(() => {
-    fetchPatients();
+    fetchData();
   }, []);
 
-  const fetchPatients = async () => {
+  const fetchData = async () => {
     try {
       const session = JSON.parse(localStorage.getItem('session') || '{}');
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/patients`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setPatients(data.patients);
+      const [patientsRes, staffRes] = await Promise.all([
+        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/patients`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        }),
+        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a210bd47/staff`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        })
+      ]);
+
+      const patientsData = await patientsRes.json();
+      const staffData = await staffRes.json();
+
+      if (patientsData.success) {
+        setPatients(patientsData.patients);
+      }
+      if (staffData.success) {
+        // Filter doctors only
+        const doctorList = staffData.staff.filter((s: any) => s.role === 'doctor');
+        setDoctors(doctorList);
+
+        // Get unique departments from staff
+        const deptList = [...new Set(staffData.staff.map((s: any) => s.department).filter(Boolean))];
+        setDepartments(deptList);
       }
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      console.error('Error fetching data:', error);
     }
   };
 
@@ -368,34 +384,52 @@ function NewAppointmentModal({ onClose, onSuccess }: { onClose: () => void; onSu
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-700 mb-2">Appointment Type *</label>
-              <select 
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              <label className="block text-sm text-gray-700 mb-2">Doctor *</label>
+              <select
+                required
+                value={formData.doctorId}
+                onChange={(e) => setFormData({ ...formData, doctorId: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option>General Consultation</option>
-                <option>Follow-up</option>
-                <option>Routine Check</option>
-                <option>Emergency</option>
-                <option>Specialist Consultation</option>
+                <option value="">Select doctor...</option>
+                {doctors.map(doctor => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.firstName} {doctor.lastName} ({doctor.department})
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-2">Department *</label>
-              <select 
+              <select
+                required
                 value={formData.department}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option>General Medicine</option>
-                <option>Surgery</option>
-                <option>Pediatrics</option>
-                <option>Cardiology</option>
-                <option>Neurology</option>
-                <option>Orthopedics</option>
+                <option value="">Select department...</option>
+                {departments.map(dept => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Appointment Type *</label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option>General Consultation</option>
+              <option>Follow-up</option>
+              <option>Routine Check</option>
+              <option>Emergency</option>
+              <option>Specialist Consultation</option>
+            </select>
           </div>
 
           <div>
